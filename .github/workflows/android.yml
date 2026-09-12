@@ -45,26 +45,33 @@ jobs:
           echo "GEMINI_API_KEY=dummy_key" > .env
           echo "GEMINI_API_KEY=dummy_key" > .env.example
 
-      - name: Clean Gradle files and remove signingConfig
+      - name: Deep Clean Gradle Files and Normalization
         run: |
           python3 - << 'EOF'
-          import glob
+          import glob, unicodedata, re
 
-          for path in glob.glob('**/*.gradle.kts', recursive=True) + glob.glob('**/*.gradle', recursive=True):
+          files = glob.glob('**/*.gradle.kts', recursive=True) + \
+                  glob.glob('**/*.gradle', recursive=True) + \
+                  glob.glob('**/*.toml', recursive=True)
+
+          for path in files:
               try:
                   with open(path, 'rb') as f:
-                      raw = f.read()
-                  text = raw.decode('utf-8', errors='ignore')
+                      content = f.read().decode('utf-8', errors='ignore')
                   
-                  # Clean invalid unicode, non-breaking spaces (NBSP), BOM, and smart quotes
-                  text = text.replace('\ufeff', '')
-                  text = text.replace('\u00a0', ' ')
-                  text = text.replace('\xa0', ' ')
-                  text = text.replace('\u200b', '')
-                  text = text.replace('\u202f', ' ')
-                  text = text.replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
+                  # Standardize Unicode characters
+                  content = unicodedata.normalize('NFKC', content)
                   
-                  lines = text.splitlines()
+                  # Remove hidden zero-width characters and BOM
+                  content = re.sub(r'[\u200b-\u200d\ufeff]', '', content)
+                  
+                  # Replace any non-standard unicode whitespace with standard ASCII space
+                  content = re.sub(r'[\u00a0\u1680\u180e\u2000-\u200a\u202f\u205f\u3000]', ' ', content)
+                  
+                  # Fix non-standard quote marks
+                  content = content.replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
+                  
+                  lines = content.splitlines()
                   fixed = []
                   for line in lines:
                       if 'signingConfig' in line and not line.strip().startswith('//'):
@@ -72,10 +79,10 @@ jobs:
                       else:
                           fixed.append(line)
                   
-                  content = '\n'.join(fixed) + '\n'
+                  result = '\n'.join(fixed) + '\n'
                   with open(path, 'wb') as f:
-                      f.write(content.encode('utf-8'))
-                  print(f'Successfully cleaned: {path}')
+                      f.write(result.encode('utf-8'))
+                  print(f'Cleaned successfully: {path}')
               except Exception as e:
                   print(f'Error processing {path}: {e}')
           EOF
