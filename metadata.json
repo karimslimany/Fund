@@ -1,0 +1,6 @@
+{
+  "name": "Find Device",
+  "description": "Simple viewer for Google Find My Device with dark mode toggle.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
