@@ -45,28 +45,40 @@ jobs:
           echo "GEMINI_API_KEY=dummy_key" > .env
           echo "GEMINI_API_KEY=dummy_key" > .env.example
 
-      - name: Fix signingConfig and encoding in Gradle files
+      - name: Clean Gradle files and remove signingConfig
         run: |
-          python3 -c "
+          python3 - << 'EOF'
           import glob
 
           for path in glob.glob('**/*.gradle.kts', recursive=True) + glob.glob('**/*.gradle', recursive=True):
               try:
                   with open(path, 'rb') as f:
-                      content = f.read().decode('utf-8-sig', errors='ignore')
-                  lines = content.splitlines()
+                      raw = f.read()
+                  text = raw.decode('utf-8', errors='ignore')
+                  
+                  # Clean invalid unicode, non-breaking spaces (NBSP), BOM, and smart quotes
+                  text = text.replace('\ufeff', '')
+                  text = text.replace('\u00a0', ' ')
+                  text = text.replace('\xa0', ' ')
+                  text = text.replace('\u200b', '')
+                  text = text.replace('\u202f', ' ')
+                  text = text.replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
+                  
+                  lines = text.splitlines()
                   fixed = []
                   for line in lines:
-                      if 'signingConfig' in line:
+                      if 'signingConfig' in line and not line.strip().startswith('//'):
                           fixed.append('// ' + line)
                       else:
                           fixed.append(line)
-                  with open(path, 'w', encoding='utf-8') as f:
-                      f.write('\n'.join(fixed))
-                  print(f'Successfully updated: {path}')
+                  
+                  content = '\n'.join(fixed) + '\n'
+                  with open(path, 'wb') as f:
+                      f.write(content.encode('utf-8'))
+                  print(f'Successfully cleaned: {path}')
               except Exception as e:
                   print(f'Error processing {path}: {e}')
-          "
+          EOF
 
       - name: Generate Gradle Wrapper
         run: gradle wrapper
@@ -82,4 +94,3 @@ jobs:
         with:
           name: App-Debug-APK
           path: "**/build/outputs/apk/debug/*.apk"
-
