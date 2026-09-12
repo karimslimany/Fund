@@ -45,7 +45,7 @@ jobs:
           echo "GEMINI_API_KEY=dummy_key" > .env
           echo "GEMINI_API_KEY=dummy_key" > .env.example
 
-      - name: Deep Clean Gradle Files and Normalization
+      - name: Strip Null Bytes, UTF-16 Conversion & Cleaning
         run: |
           python3 - << 'EOF'
           import glob, unicodedata, re
@@ -57,20 +57,32 @@ jobs:
           for path in files:
               try:
                   with open(path, 'rb') as f:
-                      content = f.read().decode('utf-8', errors='ignore')
-                  
+                      raw = f.read()
+
+                  # Detect UTF-16 encoding or null bytes
+                  if b'\x00' in raw:
+                      try:
+                          content = raw.decode('utf-16')
+                      except Exception:
+                          content = raw.decode('utf-8', errors='ignore').replace('\x00', '')
+                  else:
+                      content = raw.decode('utf-8', errors='ignore')
+
+                  # Remove any remaining null bytes
+                  content = content.replace('\x00', '')
+
                   # Standardize Unicode characters
                   content = unicodedata.normalize('NFKC', content)
-                  
+
                   # Remove hidden zero-width characters and BOM
                   content = re.sub(r'[\u200b-\u200d\ufeff]', '', content)
-                  
-                  # Replace any non-standard unicode whitespace with standard ASCII space
+
+                  # Replace non-standard unicode whitespace with standard space
                   content = re.sub(r'[\u00a0\u1680\u180e\u2000-\u200a\u202f\u205f\u3000]', ' ', content)
-                  
-                  # Fix non-standard quote marks
+
+                  # Fix non-standard quotes
                   content = content.replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
-                  
+
                   lines = content.splitlines()
                   fixed = []
                   for line in lines:
@@ -78,11 +90,11 @@ jobs:
                           fixed.append('// ' + line)
                       else:
                           fixed.append(line)
-                  
+
                   result = '\n'.join(fixed) + '\n'
                   with open(path, 'wb') as f:
                       f.write(result.encode('utf-8'))
-                  print(f'Cleaned successfully: {path}')
+                  print(f'Successfully fixed encoding: {path}')
               except Exception as e:
                   print(f'Error processing {path}: {e}')
           EOF
@@ -101,3 +113,4 @@ jobs:
         with:
           name: App-Debug-APK
           path: "**/build/outputs/apk/debug/*.apk"
+
