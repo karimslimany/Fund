@@ -45,9 +45,28 @@ jobs:
           echo "GEMINI_API_KEY=dummy_key" > .env
           echo "GEMINI_API_KEY=dummy_key" > .env.example
 
-      - name: Remove problematic signingConfig
+      - name: Fix signingConfig and encoding in Gradle files
         run: |
-          find . -type f \( -name "build.gradle.kts" -o -name "build.gradle" \) -exec sed -i '/signingConfig/d' {} +
+          python3 -c "
+          import glob
+
+          for path in glob.glob('**/*.gradle.kts', recursive=True) + glob.glob('**/*.gradle', recursive=True):
+              try:
+                  with open(path, 'rb') as f:
+                      content = f.read().decode('utf-8-sig', errors='ignore')
+                  lines = content.splitlines()
+                  fixed = []
+                  for line in lines:
+                      if 'signingConfig' in line:
+                          fixed.append('// ' + line)
+                      else:
+                          fixed.append(line)
+                  with open(path, 'w', encoding='utf-8') as f:
+                      f.write('\n'.join(fixed))
+                  print(f'Successfully updated: {path}')
+              except Exception as e:
+                  print(f'Error processing {path}: {e}')
+          "
 
       - name: Generate Gradle Wrapper
         run: gradle wrapper
@@ -63,3 +82,4 @@ jobs:
         with:
           name: App-Debug-APK
           path: "**/build/outputs/apk/debug/*.apk"
+
