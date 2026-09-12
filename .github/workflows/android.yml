@@ -45,6 +45,10 @@ jobs:
           echo "GEMINI_API_KEY=dummy_key" > .env
           echo "GEMINI_API_KEY=dummy_key" > .env.example
 
+      - name: Remove problematic signingConfig
+        run: |
+          find . -type f \( -name "build.gradle.kts" -o -name "build.gradle" \) -exec sed -i '/signingConfig/d' {} +
+
       - name: Generate Gradle Wrapper
         run: gradle wrapper
 
